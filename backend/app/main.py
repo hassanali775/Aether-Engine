@@ -4,11 +4,14 @@ from contextlib import asynccontextmanager
 
 from app.core.event_bus import LocalEventBus
 from app.services.llm_service import LocalLLMService
+from app.services.tool_sandbox import ToolExecutionSandbox
 from app.agents.orchestrator_agent import OrchestratorAgent
+from app.agents.action_agents import FileWriterAgent
 
-# 1. Instantiate the asynchronous core platform systems
+# 1. Initialize core in-memory platform modules
 event_bus = LocalEventBus()
 llm_engine = LocalLLMService()
+sandbox = ToolExecutionSandbox()
 active_agents: dict = {}
 
 @asynccontextmanager
@@ -17,13 +20,21 @@ async def lifespan(app: FastAPI):
     # Start the central message broker background polling routine
     bus_task = asyncio.create_task(event_bus.start_processing_loop())
     
-    # Instantiate your intelligent Orchestrator Agent layer
+    # Instantiate the Orchestrator (The Brain)
     orchestrator = OrchestratorAgent(
         agent_id="orchestrator_prime", 
         bus=event_bus, 
         llm_service=llm_engine
     )
     active_agents[orchestrator.agent_id] = orchestrator
+
+    # Instantiate the FileWriterAgent (The Hands)
+    file_worker = FileWriterAgent(
+        agent_id="worker_file_01", 
+        bus=event_bus, 
+        sandbox=sandbox
+    )
+    active_agents[file_worker.agent_id] = file_worker
     
     yield
     # Gracefully spin down on shutdown
@@ -42,7 +53,7 @@ async def health_check():
 
 @app.post("/api/orchestrate")
 async def process_user_objective(instruction: str):
-    """Production Endpoint. Drops abstract commands straight into the intelligent routing fabric."""
+    """Drops abstract commands directly into the decentralized routing fabric."""
     task_id = f"task_root_{int(asyncio.get_event_loop().time())}"
     
     payload = {
@@ -53,6 +64,5 @@ async def process_user_objective(instruction: str):
         "context_data": {}
     }
     
-    # Broadcast to the orchestrator queue
     await event_bus.publish(event_type="task.orchestrator", payload=payload)
     return {"status": "objective_received", "assigned_task_id": task_id}
