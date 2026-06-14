@@ -13,7 +13,8 @@ class FileWriterAgent(BaseOperationalAgent):
     Listens specifically for FILE_WRITER tasks and interacts with the sandbox.
     """
     def __init__(self, agent_id: str, bus: LocalEventBus, sandbox: ToolExecutionSandbox):
-        # Register this worker to automatically listen to 'task.file_writer' topics
+        # Pass the type to the parent constructor. The base class automatically 
+        # maps the async listening queue patterns under the hood.
         super().__init__(agent_id=agent_id, agent_type="FILE_WRITER", bus=bus)
         self.sandbox = sandbox
 
@@ -21,18 +22,28 @@ class FileWriterAgent(BaseOperationalAgent):
         """Executes the physical sandbox tool sequence based on incoming event data."""
         logger.info(f"[{self.agent_id}] Activating physical file-system write sequence...")
         
-        # Pull the parameters out of our structured context dictionary
+        # Pull parameters from our multi-step task payload frame context
         args = event.context_data
-        filename = args.get("filename", f"log_{event.task_id}.txt")
-        content = args.get("content", f"Automated execution log for context: {event.instruction}")
+        filename = args.get("filename", f"audit_{event.task_id}.txt")
+        content = args.get("content", f"Automated execution log. Master Instruction: {event.instruction}")
 
-        # Simulate local compute cycles
+        # Simulate local disk compute cycles
         await asyncio.sleep(1.0)
 
-        # Fire the operation inside our safe sandbox container
+        # Fire the operation safely inside our traversal-protected sandbox
         result = self.sandbox.write_local_file(filename=filename, content=content)
 
         if not result["success"]:
             raise RuntimeError(f"Sandbox operation failed: {result.get('msg')}")
             
-        logger.info(f"[{self.agent_id}] Physical operation complete. Asset stored safely.")
+        logger.info(f"[{self.agent_id}] Physical operation complete. Asset stored cleanly.")
+        
+        # Add this to broadcast the success packet back up to the UI console window
+        await self.bus.publish(
+            event_type="telemetry.update",
+            payload={
+                "agent_id": self.agent_id,
+                "agent_type": self.agent_type,
+                "message": f"SUCCESS: Written compiled block asset directly to safe sandbox -> {filename}"
+            }
+        )

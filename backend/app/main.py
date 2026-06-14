@@ -17,10 +17,11 @@ active_agents: dict = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handles async background task loops upon server startup and shutdown."""
-    # Start the central message broker background polling routine
+    print("\n[SYSTEM BOOT] Starting Central Message Broker Processing Loop...")
     bus_task = asyncio.create_task(event_bus.start_processing_loop())
     
-    # Instantiate the Orchestrator (The Brain)
+    # Instantiate the Orchestrator
+    print("[SYSTEM BOOT] Mounting Orchestrator Prime Node...")
     orchestrator = OrchestratorAgent(
         agent_id="orchestrator_prime", 
         bus=event_bus, 
@@ -28,7 +29,8 @@ async def lifespan(app: FastAPI):
     )
     active_agents[orchestrator.agent_id] = orchestrator
 
-    # Instantiate the FileWriterAgent (The Hands)
+    # Instantiate the FileWriterAgent
+    print("[SYSTEM BOOT] Mounting File Writer Worker Node...")
     file_worker = FileWriterAgent(
         agent_id="worker_file_01", 
         bus=event_bus, 
@@ -37,10 +39,11 @@ async def lifespan(app: FastAPI):
     active_agents[file_worker.agent_id] = file_worker
     
     yield
-    # Gracefully spin down on shutdown
+    
+    # Graceful shutdown sequence
+    print("[SYSTEM SHUTDOWN] Stopping processing loops cleanly...")
     event_bus.stop_processing_loop()
     bus_task.cancel()
-
 app = FastAPI(title="Aether Engine Core Backend", lifespan=lifespan)
 
 @app.get("/health")
@@ -64,5 +67,6 @@ async def process_user_objective(instruction: str):
         "context_data": {}
     }
     
+    # Must be lowercase to match the BaseOperationalAgent setup
     await event_bus.publish(event_type="task.orchestrator", payload=payload)
     return {"status": "objective_received", "assigned_task_id": task_id}
